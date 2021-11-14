@@ -1,0 +1,36 @@
+package ru.geekbrains.qa.java2.lesson7_project.project;
+
+import java.math.BigDecimal;
+
+public class WeatherResponse {
+    private String text;
+    private BigDecimal temperatureC;
+
+    public WeatherResponse(String text, BigDecimal temperatureC) {
+        this.text = text;
+        this.temperatureC = temperatureC;
+    }
+
+    public String getText() {
+        return text;
+    }
+
+    public void setText(String text) {
+        this.text = text;
+    }
+
+    public BigDecimal getTemperatureC() {
+        return temperatureC;
+    }
+
+    public void setTemperatureC(BigDecimal temperatureC) {
+        this.temperatureC = temperatureC;
+    }
+
+
+    @Override
+    public String toString() {
+        return String.format("Сегодня ожидается %s, температура - %s С", text, temperatureC);
+    }
+
+}

@@ -1,0 +1,136 @@
+package ru.geekbrains.qa.java2.lesson7_project.project;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.squareup.okhttp.*;
+import ru.geekbrains.qa.java2.lesson7_project.project.enums.Periods;
+
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.ZonedDateTime;
+public class AccuWeatherProvider implements WeatherProvider {
+
+    private static final String BASE_HOST = "dataservice.accuweather.com";
+    private static final String FORECAST_ENDPOINT = "forecasts";
+    private static final String CURRENT_CONDITIONS_ENDPOINT = "currentconditions";
+    private static final String API_VERSION = "v1";
+    private static final String API_KEY = ApplicationGlobalState.getInstance().getApiKey();
+    private static final String FORECAST_TYPE = "daily";
+    private static final String FORECAST_PERIOD = "5day";
+    private static final String FORECAST_RESPONSE_TEMPLATE = "В городе %s на дату %s ожидается %s, температура - %s";
+
+
+    private final OkHttpClient client = new OkHttpClient();
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Override
+    public void getWeather(Periods periods) throws IOException {
+        String cityKey = detectCityKey();
+        switch (periods) {
+            case NOW:
+                HttpUrl url = new HttpUrl.Builder()
+                        .scheme("http")
+                        .host(BASE_HOST)
+                        .addPathSegment(CURRENT_CONDITIONS_ENDPOINT)
+                        .addPathSegment(API_VERSION)
+                        .addPathSegment(cityKey)
+                        .addQueryParameter("apikey", API_KEY)
+                        .build();
+
+                Request request = new Request.Builder()
+                        .addHeader("accept", "application/json")
+                        .url(url)
+                        .build();
+
+                Response response = client.newCall(request).execute();
+                String jsonResponse = response.body().string();
+
+                // TODO: Сделать в рамках д/з вывод более приятным для пользователя.
+                //  Создать класс WeatherResponse, десериализовать ответ сервера в экземпляр класса
+                //  Вывести пользователю только текущую температуру в C и сообщение (weather text)
+                String weatherText = objectMapper.readTree(jsonResponse).get(0).at("/WeatherText").asText();
+                String tempText = objectMapper.readTree(jsonResponse).get(0).at("/Temperature/Metric/Value").asText();
+                BigDecimal temperatureC = new BigDecimal(tempText);
+                System.out.println(new WeatherResponse(weatherText, temperatureC));
+                break;
+
+            case FIVE_DAYS:
+                url = new HttpUrl.Builder()
+                        .scheme("http")
+                        .host(BASE_HOST)
+                        .addPathSegment(FORECAST_ENDPOINT)
+                        .addPathSegment(API_VERSION)
+                        .addPathSegment(FORECAST_TYPE)
+                        .addPathSegment(FORECAST_PERIOD)
+                        .addPathSegment(cityKey)
+                        .addQueryParameter("apikey", API_KEY)
+                        .addQueryParameter("metric", "true")
+                        .build();
+
+                request = new Request.Builder()
+                        .addHeader("accept", "application/json")
+                        .url(url)
+                        .build();
+
+                response = client.newCall(request).execute();
+                jsonResponse = response.body().string();
+
+                JsonNode daysForecast = objectMapper.readTree(jsonResponse).at("/DailyForecasts");
+
+
+                for (int i = 0; i < 5; i++) {
+                    String date = daysForecast.get(i).at("/Date").asText();
+                    ZonedDateTime zonedDateTime = ZonedDateTime.parse(date);
+                    LocalDate localDate = zonedDateTime.toLocalDate();
+
+                    String minTempText = daysForecast.get(i).at("/Temperature/Minimum/Value").asText();
+                    String maxTempText = daysForecast.get(i).at("/Temperature/Maximum/Value").asText();
+
+                    // формула вычисления среднего значения
+                    BigDecimal temp = new BigDecimal(minTempText).add(new BigDecimal(maxTempText)).divide(new BigDecimal(2));
+
+                    String text = daysForecast.get(i).at("/Day/IconPhrase").asText();
+                    System.out.println(String.format(FORECAST_RESPONSE_TEMPLATE, ApplicationGlobalState.getInstance().getSelectedCity(), localDate, text, temp));
+                }
+                break;
+        }
+    }
+
+    public String detectCityKey() throws IOException {
+        String selectedCity = ApplicationGlobalState.getInstance().getSelectedCity();
+
+        HttpUrl detectLocationURL = new HttpUrl.Builder()
+                .scheme("http")
+                .host(BASE_HOST)
+                .addPathSegment("locations")
+                .addPathSegment(API_VERSION)
+                .addPathSegment("cities")
+                .addPathSegment("autocomplete")
+                .addQueryParameter("apikey", API_KEY)
+                .addQueryParameter("q", selectedCity)
+                .build();
+
+        Request request = new Request.Builder()
+                .addHeader("accept", "application/json")
+                .url(detectLocationURL)
+                .build();
+
+        Response response = client.newCall(request).execute();
+
+        if (!response.isSuccessful()) {
+            throw new IOException("Невозможно прочесть информацию о городе. " +
+                    "Код ответа сервера = " + response.code() + " тело ответа = " + response.body().string());
+        }
+        String jsonResponse = response.body().string();
+        System.out.println("Произвожу поиск города " + selectedCity);
+
+        if (objectMapper.readTree(jsonResponse).size() > 0) {
+            String cityName = objectMapper.readTree(jsonResponse).get(0).at("/LocalizedName").asText();
+            String countryName = objectMapper.readTree(jsonResponse).get(0).at("/Country/LocalizedName").asText();
+            System.out.println("Найден город " + cityName + " в стране " + countryName);
+        } else throw new IOException("Server returns 0 cities");
+
+        return objectMapper.readTree(jsonResponse).get(0).at("/Key").asText();
+    }
+}
