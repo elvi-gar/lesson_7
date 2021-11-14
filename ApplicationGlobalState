@@ -1,3 +1,5 @@
+package ru.geekbrains.qa.java2.lesson7_project.project;
+
 public final class ApplicationGlobalState {
 
     private static ApplicationGlobalState INSTANCE;
