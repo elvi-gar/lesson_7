@@ -1,3 +1,14 @@
+package ru.geekbrains.qa.java2.lesson7_project.project;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.squareup.okhttp.*;
+import ru.geekbrains.qa.java2.lesson7_project.project.enums.Periods;
+
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.ZonedDateTime;
 public class AccuWeatherProvider implements WeatherProvider {
 
     private static final String BASE_HOST = "dataservice.accuweather.com";
